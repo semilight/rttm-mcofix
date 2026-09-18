@@ -4,6 +4,8 @@ A fork of [Ringosham's Real Time Translation Mod](https://github.com/ringosham/T
 
 Version 1.1.2. Forked from RTTM 6.0.1.
 
+**Any release present on this repo will be incomplete and will  not provide access to fallback translations.  Contact me for an API key or a full build with the bundled default key.**
+
 ## Fixes/Improvements
 
 - Fix translation for users with kits (<*Player> would previously not translate)
