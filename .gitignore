@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+.gradletasknamecache
+!gradle/wrapper/gradle-wrapper.jar
+
+# ForgeGradle
+env/
+run/
+logs/
+out/
+bin/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+*.launch
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Never commit a live API key or a built jar
+*.jar
+!gradle/wrapper/gradle-wrapper.jar

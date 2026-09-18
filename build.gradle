@@ -1,0 +1,119 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        // FG5 builds a correct 1.12.2 dev jar; FG3 (the original) + dead jcenter no
+        // longer resolve. fixMergetoolSideEnum below repairs the runtime Side enum.
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+', changing: true
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'idea'
+
+sourceSets {
+    main {
+        java { srcDirs = ["$projectDir/src/main/java"] }
+        resources { srcDirs = ["$projectDir/src/main/resources"] }
+    }
+}
+
+version = project.mod_version
+group = project.group_name
+archivesBaseName = "[" + project.minecraft_version + "]RTTM-mcofix"
+
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+minecraft {
+    mappings channel: project.mappings_channel, version: project.mappings_version
+
+    runs {
+        client {
+            workingDirectory project.file('env')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                translationmod {
+                    source sourceSets.main
+                }
+            }
+        }
+        server {
+            workingDirectory project.file('env')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                translationmod {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+// Forge 1.12 loads mod resources from the compiled-classes dir in dev.
+sourceSets.all { it.output.resourcesDir = it.output.classesDirs.getFiles().iterator().next() }
+
+// Every ForgeGradle version assembles the 1.12.2 dev jar with mergetool's own
+// 3-constant Side enum (CLIENT/SERVER/BUKKIT); NetworkRegistry then NPEs during
+// FML channel registration (MinecraftForge/ForgeGradle#748). Swap in the clean
+// 2-constant Side.class from the forge universal jar before any dev run.
+task fixMergetoolSideEnum {
+    description = "Replaces mergetool's 3-constant Side enum in the generated dev jar with the clean forge one"
+    doLast {
+        def cacheRoot = new File(gradle.gradleUserHomeDir, 'caches/forge_gradle')
+        def universal = fileTree(new File(cacheRoot, 'maven_downloader'))
+                .matching { include '**/forge-*-universal.jar' }.files.find()
+        if (universal == null) {
+            logger.warn('fixMergetoolSideEnum: no forge universal jar in the FG cache yet, skipping')
+            return
+        }
+        byte[] cleanSide = null
+        new java.util.zip.ZipFile(universal).withCloseable { zf ->
+            cleanSide = zf.getInputStream(zf.getEntry('net/minecraftforge/fml/relauncher/Side.class')).bytes
+        }
+        fileTree(new File(cacheRoot, 'minecraft_user_repo'))
+                .matching { include '**/forge-*_mapped_*.jar'; exclude '**/*-sources.jar' }
+                .each { jarFile ->
+            def uri = java.net.URI.create("jar:${jarFile.toURI()}")
+            java.nio.file.FileSystems.newFileSystem(uri, [:]).withCloseable { fs ->
+                def path = fs.getPath('net/minecraftforge/fml/relauncher/Side.class')
+                if (java.nio.file.Files.exists(path)) {
+                    byte[] current = java.nio.file.Files.readAllBytes(path)
+                    if (new String(current, 'ISO-8859-1').contains('BUKKIT')) {
+                        java.nio.file.Files.write(path, cleanSide)
+                        logger.lifecycle("fixMergetoolSideEnum: patched Side enum in ${jarFile.name}")
+                    }
+                }
+            }
+        }
+    }
+}
+fixMergetoolSideEnum.mustRunAfter(tasks.matching { it.name in ['compileJava', 'classes', 'prepareRuns', 'prepareRunClient', 'prepareRunServer'] })
+tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach {
+    dependsOn fixMergetoolSideEnum
+}
+
+dependencies {
+    // Gson and Apache Commons Lang3 (the mod's only non-MC deps) ship with Forge 1.12.2.
+    minecraft 'net.minecraftforge:forge:' + project.forge_version
+}
+
+jar {
+    manifest {
+        attributes([
+                "Specification-Title"     : project.mod_name,
+                "Specification-Vendor"    : project.mod_vendor,
+                "Specification-Version"   : project.mod_version,
+                "Implementation-Title"    : project.mod_name,
+                "Implementation-Version"  : project.mod_version,
+                "Implementation-Vendor"   : project.mod_vendor,
+                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+jar.finalizedBy('reobfJar')
