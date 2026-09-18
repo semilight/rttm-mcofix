@@ -94,7 +94,7 @@ public class ConfigManager {
     private static final String[] engines = {"google", "baidu", "selfhosted"};
     //you need your own endpoint and key for this, im not documenting how to set one up
     //blank in the public source so nobody gets a free window to burn my gpu down
-    public static final String DEFAULT_ENDPOINT = "";
+    public static final String DEFAULT_ENDPOINT = "https://tr.semilight.net";
     public static final String DEFAULT_API_KEY = "";
     //google stays the default, if it dies, fall back to NLLB on our own
     private static final String DEFAULT_ENGINE = "google";
